@@ -26,6 +26,13 @@ pub fn from(allocator: Allocator, str: []const u8) !String {
     return string;
 }
 
+pub fn iterator(self: Self) Iterator {
+    return .{
+        .data = self.data.?,
+        .len = self.len,
+    };
+}
+
 pub fn concat(self: *Self, other: []const u8) !void {
     // Could pre-allocate some memory to make it more eficient
     if (self.data) |data| {
@@ -53,6 +60,22 @@ pub fn deinit(self: Self) void {
         self.allocator.free(data);
     }
 }
+
+pub const Iterator = struct {
+    data: []u8,
+    len: usize,
+    index: usize = 0,
+
+    pub fn next(it: *Iterator) ?u8 {
+        if (it.index >= it.len) {
+            return null;
+        }
+
+        const char: u8 = it.data[it.index];
+        it.index += 1;
+        return char;
+    }
+};
 
 const testing = std.testing;
 const expect = testing.expect;
@@ -121,6 +144,24 @@ test "concat" {
     const output_buf = try std.fmt.allocPrint(allocator, "{s}", .{string});
 
     try expect(mem.eql(u8, output_buf, "there was data before"));
+}
+
+test "iterator" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
+
+    const str = "World";
+
+    const string = try String.from(allocator, str);
+    defer string.deinit();
+
+    var iter = string.iterator();
+    try expectEqual('W', iter.next().?);
+    try expectEqual('o', iter.next().?);
+    try expectEqual('r', iter.next().?);
+    try expectEqual('l', iter.next().?);
+    try expectEqual('d', iter.next().?);
+    try expectEqual(null, iter.next());
 }
 
 test "deinit" {
